@@ -16,23 +16,17 @@
     width: 100%;
   }
 
+  /* Extra top padding so absolute badges don't clip */
   .scoreboard-wrap {
     display: inline-flex;
     flex-direction: column;
     align-items: center;
     filter: drop-shadow(0 1px 4px rgba(0,0,0,0.35));
     position: relative;
+    margin-top: 26px;
   }
 
-  .try-row {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 6px;
-    padding-bottom: 2px;
-    min-height: 22px;
-  }
-
+  /* ── Try badges — absolutely positioned above each score ── */
   .try-badge {
     display: none;
     align-items: center;
@@ -41,8 +35,10 @@
     border-radius: 3px 3px 0 0;
     padding: 2px 8px;
     line-height: 1;
-    position: relative;
+    position: absolute;
     overflow: hidden;
+    z-index: 10;
+    /* bottom is set so it sits right on top of the main-bar */
   }
   .try-badge.show { display: inline-flex; }
 
@@ -69,11 +65,13 @@
     background: var(--team-color, #888);
   }
 
+  /* ── Main bar ── */
   .main-bar {
     display: inline-flex;
     align-items: stretch;
     border-radius: 4px;
     overflow: hidden;
+    position: relative;
   }
 
   .score-panel {
@@ -82,7 +80,6 @@
     background: #fff;
     padding: 8px 18px;
     gap: 0;
-    position: relative;
   }
 
   .team-home,
@@ -157,19 +154,18 @@
 
 <div class="scoreboard-wrap" id="wrap">
 
-  <div class="try-row" id="tryRow">
-    <span class="try-badge" id="homeTryBadge"><span class="try-count" id="homeTryCount">1</span><span class="try-label">T</span></span>
-    <span class="try-badge" id="awayTryBadge"><span class="try-count" id="awayTryCount">1</span><span class="try-label">T</span></span>
-  </div>
+  <!-- Try badges — positioned by JS directly above each score -->
+  <span class="try-badge" id="homeTryBadge"><span class="try-count" id="homeTryCount">1</span><span class="try-label">T</span></span>
+  <span class="try-badge" id="awayTryBadge"><span class="try-count" id="awayTryCount">1</span><span class="try-label">T</span></span>
 
-  <div class="main-bar">
-    <div class="score-panel" id="scorePanel">
+  <div class="main-bar" id="mainBar">
+    <div class="score-panel">
       <div class="team-home">
         <span class="team-dot" id="homeDot"></span>
         <span class="team-name" id="homeName">HOME</span>
         <span class="team-score" id="homeScore">0</span>
       </div>
-      <div class="separator" id="separator">|</div>
+      <div class="separator">|</div>
       <div class="team-away">
         <span class="team-score" id="awayScore">0</span>
         <span class="team-name" id="awayName">AWAY</span>
@@ -183,12 +179,11 @@
 
 </div>
 
-<!-- Firebase SDK (modular compat) -->
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <script>
-  // ── Firebase config ──
   const app = firebase.initializeApp({
     databaseURL: 'https://stream-tools-mrc-default-rtdb.europe-west1.firebasedatabase.app'
   });
@@ -205,17 +200,30 @@
     return base + (Date.now() - d.timerStartedAt) / 1000;
   }
 
+  // Position a badge centered above a score element
+  function positionBadge(badgeId, scoreId) {
+    const badge = document.getElementById(badgeId);
+    const score = document.getElementById(scoreId);
+    const wrap  = document.getElementById('wrap');
+    const bar   = document.getElementById('mainBar');
+    if (!badge || !score || !wrap || !bar) return;
+
+    const scoreRect = score.getBoundingClientRect();
+    const wrapRect  = wrap.getBoundingClientRect();
+    const barRect   = bar.getBoundingClientRect();
+
+    // Center badge horizontally over the score
+    const scoreCenter = scoreRect.left + scoreRect.width / 2 - wrapRect.left;
+    const badgeWidth  = badge.offsetWidth;
+    badge.style.left = (scoreCenter - badgeWidth / 2) + 'px';
+
+    // Sit directly on top of the main bar
+    badge.style.bottom = (wrapRect.bottom - barRect.top) + 'px';
+  }
+
   function positionTries() {
-    const sep  = document.getElementById('separator');
-    const wrap = document.getElementById('wrap');
-    const row  = document.getElementById('tryRow');
-    if (!sep || !wrap || !row) return;
-    const sepRect  = sep.getBoundingClientRect();
-    const wrapRect = wrap.getBoundingClientRect();
-    const sepCenter = sepRect.left + sepRect.width / 2 - wrapRect.left;
-    const rowWidth  = row.offsetWidth;
-    row.style.position = 'relative';
-    row.style.left = (sepCenter - rowWidth / 2) + 'px';
+    positionBadge('homeTryBadge', 'homeScore');
+    positionBadge('awayTryBadge', 'awayScore');
   }
 
   function apply(d) {
@@ -261,7 +269,6 @@
     document.getElementById('timerDisplay').textContent = `${pad(secs / 60)}:${pad(secs % 60)}`;
   }
 
-  // ── Realtime listener — instant updates ──
   ref.on('value', snap => {
     const d = snap.val();
     if (!d) return;
