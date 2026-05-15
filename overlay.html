@@ -24,7 +24,6 @@
     position: relative;
   }
 
-  /* ── Try badges — positioned above the separator ── */
   .try-row {
     display: flex;
     align-items: flex-end;
@@ -32,7 +31,6 @@
     gap: 6px;
     padding-bottom: 2px;
     min-height: 22px;
-    /* Will be repositioned by JS to sit above the | separator */
   }
 
   .try-badge {
@@ -66,14 +64,11 @@
   .try-badge::after {
     content: '';
     position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: 0; left: 0; right: 0;
     height: 3px;
     background: var(--team-color, #888);
   }
 
-  /* ── Main bar ── */
   .main-bar {
     display: inline-flex;
     align-items: stretch;
@@ -81,7 +76,6 @@
     overflow: hidden;
   }
 
-  /* ── White score panel ── */
   .score-panel {
     display: inline-flex;
     align-items: center;
@@ -139,7 +133,6 @@
     align-self: center;
   }
 
-  /* ── Timer block ── */
   .timer-block {
     display: inline-flex;
     align-items: center;
@@ -164,48 +157,45 @@
 
 <div class="scoreboard-wrap" id="wrap">
 
-  <!-- Try badges above the separator -->
   <div class="try-row" id="tryRow">
     <span class="try-badge" id="homeTryBadge"><span class="try-count" id="homeTryCount">1</span><span class="try-label">T</span></span>
     <span class="try-badge" id="awayTryBadge"><span class="try-count" id="awayTryCount">1</span><span class="try-label">T</span></span>
   </div>
 
-  <!-- Main score bar -->
   <div class="main-bar">
-
     <div class="score-panel" id="scorePanel">
-
       <div class="team-home">
         <span class="team-dot" id="homeDot"></span>
         <span class="team-name" id="homeName">HOME</span>
         <span class="team-score" id="homeScore">0</span>
       </div>
-
       <div class="separator" id="separator">|</div>
-
       <div class="team-away">
         <span class="team-score" id="awayScore">0</span>
         <span class="team-name" id="awayName">AWAY</span>
         <span class="team-dot" id="awayDot"></span>
       </div>
-
     </div>
-
     <div class="timer-block">
       <div class="timer-display" id="timerDisplay">00:00</div>
     </div>
-
   </div>
 
 </div>
 
-<script>
-  const BIN_ID  = '6a034615c0954111d81207f7';
-  const API_KEY = '$2a$10$hZcxsF9M/Qvyju7gvrU4W.qYonTfYY7rLv4QvzNei0qtBXSLp0PpC';
-  const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}/latest`;
-  const HEADERS = { 'X-Master-Key': API_KEY };
+<!-- Firebase SDK (modular compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
-  let prev = null, cloudState = null;
+<script>
+  // ── Firebase config ──
+  const app = firebase.initializeApp({
+    databaseURL: 'https://stream-tools-mrc-default-rtdb.europe-west1.firebasedatabase.app'
+  });
+  const db  = firebase.database();
+  const ref = db.ref('overlayData');
+
+  let cloudState = null;
 
   function pad(n) { return String(Math.floor(Math.abs(n))).padStart(2, '0'); }
 
@@ -215,11 +205,10 @@
     return base + (Date.now() - d.timerStartedAt) / 1000;
   }
 
-  // Position the try-row so it's centered above the separator
   function positionTries() {
-    const sep   = document.getElementById('separator');
-    const wrap  = document.getElementById('wrap');
-    const row   = document.getElementById('tryRow');
+    const sep  = document.getElementById('separator');
+    const wrap = document.getElementById('wrap');
+    const row  = document.getElementById('tryRow');
     if (!sep || !wrap || !row) return;
     const sepRect  = sep.getBoundingClientRect();
     const wrapRect = wrap.getBoundingClientRect();
@@ -230,6 +219,8 @@
   }
 
   function apply(d) {
+    if (!d) return;
+
     document.getElementById('homeName').textContent  = d.homeName  || 'HOME';
     document.getElementById('awayName').textContent  = d.awayName  || 'AWAY';
     document.getElementById('homeScore').textContent = d.homeScore ?? 0;
@@ -240,7 +231,6 @@
     document.getElementById('homeDot').style.background = hc;
     document.getElementById('awayDot').style.background = ac;
 
-    // Try badges — show only when > 0
     const ht = d.homeTries || 0;
     const at = d.awayTries || 0;
     const hBadge = document.getElementById('homeTryBadge');
@@ -262,7 +252,6 @@
       aBadge.classList.remove('show');
     }
 
-    // Reposition tries above separator after DOM updates
     requestAnimationFrame(positionTries);
   }
 
@@ -272,23 +261,14 @@
     document.getElementById('timerDisplay').textContent = `${pad(secs / 60)}:${pad(secs % 60)}`;
   }
 
-  async function poll() {
-    try {
-      const res  = await fetch(BIN_URL, { headers: HEADERS });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const d    = json.record;
-      if (!d) throw new Error('empty record');
-      prev = d;
-      cloudState = d;
-      apply(d);
-    } catch(e) {
-      console.warn('Poll error:', e.message);
-    }
-  }
+  // ── Realtime listener — instant updates ──
+  ref.on('value', snap => {
+    const d = snap.val();
+    if (!d) return;
+    cloudState = d;
+    apply(d);
+  });
 
-  poll();
-  setInterval(poll, 2000);
   setInterval(tick, 500);
 </script>
 </body>

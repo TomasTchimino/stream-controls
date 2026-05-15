@@ -1,0 +1,14 @@
+{
+  "homeColor": "#b51a00",
+  "awayColor": "#0042a9",
+  "homeTries": 1,
+  "awayTries": 0,
+  "timerSeconds": 35.076,
+  "timerRunning": false,
+  "timerStartedAt": null,
+  "homeName": "MALMÖ RC",
+  "awayName": "SPARTACUS",
+  "homeScore": 7,
+  "awayScore": 0,
+  "period": "1st Half"
+}
