@@ -14,19 +14,59 @@
     align-items: flex-start;
     padding: 16px;
     width: 100%;
-    /* room above for badges */
     padding-top: 40px;
   }
 
   .scoreboard-wrap {
     display: inline-flex;
+    flex-direction: column;
+    align-items: center;
     filter: drop-shadow(0 1px 4px rgba(0,0,0,0.35));
-    border-radius: 4px;
-    overflow: visible;
-    transform: scale(0.8);
+    position: relative;
+    transform: scale(0.7);
     transform-origin: top center;
   }
 
+  /* ── Try badges — absolutely positioned by JS ── */
+  .try-badge {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: #1a1a1a;
+    border-radius: 3px 3px 0 0;
+    padding: 2px 8px;
+    line-height: 1;
+    position: absolute;
+    white-space: nowrap;
+    overflow: hidden;
+    z-index: 10;
+  }
+  .try-badge.show { display: inline-flex; }
+
+  .try-count {
+    font-family: 'Inter', sans-serif;
+    font-weight: 900;
+    font-size: 13px;
+    color: #fff;
+    letter-spacing: 0.5px;
+  }
+  .try-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+    letter-spacing: 0.5px;
+  }
+
+  .try-badge::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--team-color, #888);
+  }
+
+  /* ── Main bar ── */
   .main-bar {
     display: inline-flex;
     align-items: stretch;
@@ -71,14 +111,6 @@
     white-space: nowrap;
   }
 
-  /* Score wrapper — relative so badge can sit above it */
-  .score-wrap {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
   .team-score {
     font-family: 'Inter', sans-serif;
     font-weight: 900;
@@ -86,48 +118,6 @@
     line-height: 1;
     color: #111;
     white-space: nowrap;
-  }
-
-  /* ── Try badge — sits above the score ── */
-  .try-badge {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    background: #1a1a1a;
-    border-radius: 3px 3px 0 0;
-    padding: 2px 8px;
-    line-height: 1;
-    position: absolute;
-    bottom: calc(100% + 8px);    /* 8px gap above the score panel top */
-    left: 50%;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    overflow: hidden;
-  }
-  .try-badge.show { display: inline-flex; }
-
-  .try-count {
-    font-family: 'Inter', sans-serif;
-    font-weight: 900;
-    font-size: 13px;
-    color: #fff;
-    letter-spacing: 0.5px;
-  }
-  .try-label {
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 13px;
-    color: #fff;
-    letter-spacing: 0.5px;
-  }
-
-  /* Coloured underline on the badge */
-  .try-badge::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 3px;
-    background: var(--team-color, #888);
   }
 
   .separator {
@@ -162,35 +152,31 @@
 </head>
 <body>
 
-<div class="scoreboard-wrap">
-  <div class="main-bar">
-    <div class="score-panel">
+<div class="scoreboard-wrap" id="wrap">
 
+  <!-- Try badges — live outside the bar, positioned by JS -->
+  <span class="try-badge" id="homeTryBadge"><span class="try-count" id="homeTryCount">1</span><span class="try-label">T</span></span>
+  <span class="try-badge" id="awayTryBadge"><span class="try-count" id="awayTryCount">1</span><span class="try-label">T</span></span>
+
+  <div class="main-bar" id="mainBar">
+    <div class="score-panel">
       <div class="team-home">
         <span class="team-dot" id="homeDot"></span>
         <span class="team-name" id="homeName">HOME</span>
-        <span class="score-wrap">
-          <span class="try-badge" id="homeTryBadge"><span class="try-count" id="homeTryCount">1</span><span class="try-label">T</span></span>
-          <span class="team-score" id="homeScore">0</span>
-        </span>
+        <span class="team-score" id="homeScore">0</span>
       </div>
-
       <div class="separator">|</div>
-
       <div class="team-away">
-        <span class="score-wrap">
-          <span class="try-badge" id="awayTryBadge"><span class="try-count" id="awayTryCount">1</span><span class="try-label">T</span></span>
-          <span class="team-score" id="awayScore">0</span>
-        </span>
+        <span class="team-score" id="awayScore">0</span>
         <span class="team-name" id="awayName">AWAY</span>
         <span class="team-dot" id="awayDot"></span>
       </div>
-
     </div>
     <div class="timer-block">
       <div class="timer-display" id="timerDisplay">00:00</div>
     </div>
   </div>
+
 </div>
 
 <!-- Firebase SDK -->
@@ -212,6 +198,42 @@
     const base = d.timerSeconds || 0;
     if (!d.timerRunning || !d.timerStartedAt) return base;
     return base + (Date.now() - d.timerStartedAt) / 1000;
+  }
+
+  // Walk up offsetParent chain to get position relative to an ancestor
+  function getOffsetRelativeTo(el, ancestor) {
+    let x = 0, y = 0, cur = el;
+    while (cur && cur !== ancestor) {
+      x += cur.offsetLeft;
+      y += cur.offsetTop;
+      cur = cur.offsetParent;
+    }
+    return { x, y };
+  }
+
+  function positionBadge(badgeId, scoreId) {
+    const badge = document.getElementById(badgeId);
+    const score = document.getElementById(scoreId);
+    const wrap  = document.getElementById('wrap');
+    const bar   = document.getElementById('mainBar');
+    if (!badge || !score || !wrap || !bar) return;
+
+    // Get score center relative to wrap
+    const scorePos = getOffsetRelativeTo(score, wrap);
+    const scoreCenterX = scorePos.x + score.offsetWidth / 2;
+
+    // Get mainBar top relative to wrap
+    const barPos = getOffsetRelativeTo(bar, wrap);
+
+    // Center badge horizontally over score
+    badge.style.left = (scoreCenterX - badge.offsetWidth / 2) + 'px';
+    // Place badge directly above the main bar
+    badge.style.top = (barPos.y - badge.offsetHeight - 2) + 'px';
+  }
+
+  function positionTries() {
+    positionBadge('homeTryBadge', 'homeScore');
+    positionBadge('awayTryBadge', 'awayScore');
   }
 
   function apply(d) {
@@ -247,6 +269,9 @@
     } else {
       aBadge.classList.remove('show');
     }
+
+    // Position after DOM updates settle
+    requestAnimationFrame(positionTries);
   }
 
   function tick() {
