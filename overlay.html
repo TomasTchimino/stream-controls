@@ -10,37 +10,41 @@
   body {
     background: transparent;
     display: flex;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: flex-start;
     padding: 16px;
+    width: 100%;
   }
 
   .scoreboard-wrap {
     display: inline-flex;
     flex-direction: column;
-    align-items: stretch;
+    align-items: center;
     filter: drop-shadow(0 1px 4px rgba(0,0,0,0.35));
+    position: relative;
   }
 
-  /* ── Try counter row (sits above the main bar) ── */
+  /* ── Try badges — positioned above the separator ── */
   .try-row {
     display: flex;
     align-items: flex-end;
     justify-content: center;
     gap: 6px;
-    padding-bottom: 3px;
-    min-height: 24px;
+    padding-bottom: 2px;
+    min-height: 22px;
+    /* Will be repositioned by JS to sit above the | separator */
   }
 
   .try-badge {
-    display: none;              /* hidden by default */
+    display: none;
     align-items: center;
     justify-content: center;
     background: #1a1a1a;
     border-radius: 3px 3px 0 0;
     padding: 2px 8px;
-    gap: 0;
     line-height: 1;
+    position: relative;
+    overflow: hidden;
   }
   .try-badge.show { display: inline-flex; }
 
@@ -59,7 +63,6 @@
     letter-spacing: 0.5px;
   }
 
-  /* Colour bar under each badge */
   .try-badge::after {
     content: '';
     position: absolute;
@@ -69,7 +72,6 @@
     height: 3px;
     background: var(--team-color, #888);
   }
-  .try-badge { position: relative; overflow: hidden; }
 
   /* ── Main bar ── */
   .main-bar {
@@ -86,6 +88,7 @@
     background: #fff;
     padding: 8px 18px;
     gap: 0;
+    position: relative;
   }
 
   .team-home,
@@ -94,7 +97,6 @@
     align-items: center;
     gap: 8px;
     white-space: nowrap;
-    position: relative;
   }
 
   .team-dot {
@@ -125,9 +127,7 @@
     line-height: 1;
     color: #111;
     white-space: nowrap;
-    transition: transform 0.15s ease, color 0.15s ease;
   }
-  .team-score.flash { transform: scale(1.2); color: #e67e00 !important; }
 
   .separator {
     font-family: 'Inter', sans-serif;
@@ -158,35 +158,14 @@
     line-height: 1;
     font-variant-numeric: tabular-nums;
   }
-
-  /* ── Score pop ── */
-  .score-pop {
-    position: absolute;
-    top: -22px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.85);
-    color: #f0c040;
-    font-family: 'Inter', sans-serif;
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    padding: 2px 7px;
-    border-radius: 3px;
-    white-space: nowrap;
-    opacity: 0;
-    transition: opacity 0.25s;
-    pointer-events: none;
-  }
-  .score-pop.show { opacity: 1; }
 </style>
 </head>
 <body>
 
-<div class="scoreboard-wrap">
+<div class="scoreboard-wrap" id="wrap">
 
-  <!-- Try counter badges above the bar -->
-  <div class="try-row">
+  <!-- Try badges above the separator -->
+  <div class="try-row" id="tryRow">
     <span class="try-badge" id="homeTryBadge"><span class="try-count" id="homeTryCount">1</span><span class="try-label">T</span></span>
     <span class="try-badge" id="awayTryBadge"><span class="try-count" id="awayTryCount">1</span><span class="try-label">T</span></span>
   </div>
@@ -194,22 +173,20 @@
   <!-- Main score bar -->
   <div class="main-bar">
 
-    <div class="score-panel">
+    <div class="score-panel" id="scorePanel">
 
       <div class="team-home">
         <span class="team-dot" id="homeDot"></span>
         <span class="team-name" id="homeName">HOME</span>
         <span class="team-score" id="homeScore">0</span>
-        <div class="score-pop" id="homeScorePop"></div>
       </div>
 
-      <div class="separator">|</div>
+      <div class="separator" id="separator">|</div>
 
       <div class="team-away">
         <span class="team-score" id="awayScore">0</span>
         <span class="team-name" id="awayName">AWAY</span>
         <span class="team-dot" id="awayDot"></span>
-        <div class="score-pop" id="awayScorePop"></div>
       </div>
 
     </div>
@@ -228,7 +205,6 @@
   const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}/latest`;
   const HEADERS = { 'X-Master-Key': API_KEY };
 
-  const scoreLabels = { 2: '+2 Conv', 3: '+3 Pen', 5: '+5 Try' };
   let prev = null, cloudState = null;
 
   function pad(n) { return String(Math.floor(Math.abs(n))).padStart(2, '0'); }
@@ -239,14 +215,18 @@
     return base + (Date.now() - d.timerStartedAt) / 1000;
   }
 
-  function flash(team, pts) {
-    const scoreEl = document.getElementById(team + 'Score');
-    const popEl   = document.getElementById(team + 'ScorePop');
-    scoreEl.classList.add('flash');
-    popEl.textContent = scoreLabels[pts] || (pts > 0 ? '+' + pts : String(pts));
-    popEl.classList.add('show');
-    setTimeout(() => scoreEl.classList.remove('flash'), 400);
-    setTimeout(() => popEl.classList.remove('show'), 2500);
+  // Position the try-row so it's centered above the separator
+  function positionTries() {
+    const sep   = document.getElementById('separator');
+    const wrap  = document.getElementById('wrap');
+    const row   = document.getElementById('tryRow');
+    if (!sep || !wrap || !row) return;
+    const sepRect  = sep.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const sepCenter = sepRect.left + sepRect.width / 2 - wrapRect.left;
+    const rowWidth  = row.offsetWidth;
+    row.style.position = 'relative';
+    row.style.left = (sepCenter - rowWidth / 2) + 'px';
   }
 
   function apply(d) {
@@ -281,6 +261,9 @@
     } else {
       aBadge.classList.remove('show');
     }
+
+    // Reposition tries above separator after DOM updates
+    requestAnimationFrame(positionTries);
   }
 
   function tick() {
@@ -296,10 +279,6 @@
       const json = await res.json();
       const d    = json.record;
       if (!d) throw new Error('empty record');
-      if (prev) {
-        if (d.homeScore > prev.homeScore) flash('home', d.homeScore - prev.homeScore);
-        if (d.awayScore > prev.awayScore) flash('away', d.awayScore - prev.awayScore);
-      }
       prev = d;
       cloudState = d;
       apply(d);
