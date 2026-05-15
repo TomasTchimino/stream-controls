@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Rugby Scoreboard Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --muted:   #6e7681;
+    --text:    #e6edf3;
+    --green:   #2ecc71;
+    --red:     #e94560;
+    --orange:  #f0a500;
+    --radius:  10px;
+  }
+
+  body {
+    font-family: 'Barlow Condensed', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: max(env(safe-area-inset-top), 16px) 16px max(env(safe-area-inset-bottom), 16px);
+  }
+
+  .page-header { padding: 8px 0 0; margin-bottom: 16px; }
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(24px, 6vw, 32px);
+    letter-spacing: 4px;
+    color: #fff;
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+  .subtitle { font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+
+  .setup-banner {
+    background: rgba(255,165,0,0.08);
+    border: 1px solid rgba(255,165,0,0.3);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #e6b450;
+    line-height: 1.6;
+  }
+  .setup-banner strong { color: var(--orange); }
+  .setup-banner code { background: #1a1a1a; padding: 2px 5px; border-radius: 3px; font-size: 10px; word-break: break-all; }
+  .setup-banner input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid rgba(255,165,0,0.4);
+    border-radius: 5px;
+    color: #fff;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: max(16px, 14px);
+    padding: 8px 10px;
+    margin-top: 6px;
+    outline: none;
+  }
+  .setup-banner input:focus { border-color: var(--orange); }
+  .setup-save {
+    margin-top: 12px;
+    width: 100%;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 12px;
+    background: var(--orange);
+    color: var(--bg);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 500px) { .grid { grid-template-columns: 1fr; } .card.wide { grid-column: 1; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .card.home { border-top: 3px solid var(--home-color, #1e6bb8); }
+  .card.away { border-top: 3px solid var(--away-color, #b81e1e); }
+  .card.wide { grid-column: 1 / -1; }
+  .card.timer-card { border-top: 3px solid var(--green); }
+  .card-title { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+
+  .name-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .team-name-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: #fff;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: max(16px, clamp(18px, 4vw, 22px));
+    letter-spacing: 3px;
+    padding: 8px 10px;
+    outline: none;
+    min-width: 0;
+  }
+  .team-name-input:focus { border-color: #58a6ff; }
+  .color-wrap {
+    position: relative;
+    width: 44px; height: 44px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+  }
+  .color-wrap input[type="color"] {
+    position: absolute;
+    inset: -6px;
+    width: calc(100% + 12px);
+    height: calc(100% + 12px);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .score-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(56px, 14vw, 72px);
+    line-height: 1;
+    text-align: center;
+    margin-bottom: 14px;
+    user-select: none;
+  }
+
+  .score-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+  .btn {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: clamp(15px, 3.5vw, 18px);
+    font-weight: 700;
+    padding: clamp(12px, 3vw, 10px) 0;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: transform 0.1s, filter 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.93); filter: brightness(1.2); }
+  .btn-try  { background: #238636; color: #fff; }
+  .btn-pen  { background: #1158a6; color: #fff; }
+  .btn-con  { background: #6e40c9; color: #fff; }
+  .btn-undo { background: var(--border); color: var(--text); }
+  .btn-label { display: block; font-size: 8px; font-weight: 400; letter-spacing: 1.5px; opacity: 0.7; text-transform: uppercase; margin-top: 2px; }
+
+  /* ── Try counter ── */
+  .try-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding-top: 6px;
+  }
+  .try-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    line-height: 1;
+  }
+  .try-display span { color: var(--text); font-size: 24px; }
+  .try-btn {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s;
+  }
+  .try-btn:active { transform: scale(0.9); }
+
+  /* ── Timer ── */
+  .timer-face {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(52px, 13vw, 72px);
+    letter-spacing: 4px;
+    text-align: center;
+    color: var(--green);
+    line-height: 1;
+    margin-bottom: 14px;
+  }
+  .timer-face.paused { color: #555; }
+
+  .timer-btn-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .btn-timer {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: clamp(14px, 3vw, 16px);
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: clamp(13px, 3.5vw, 12px) 0;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-timer:active  { transform: scale(0.94); }
+  .btn-timer:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-start  { background: var(--green);  color: var(--bg); }
+  .btn-pause  { background: var(--orange); color: var(--bg); }
+  .btn-treset { background: var(--border); color: var(--text); }
+
+  .time-set-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .time-set-row input[type="number"] {
+    width: 52px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: #fff;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    text-align: center;
+    padding: 6px 4px;
+    outline: none;
+  }
+  .time-set-row input:focus { border-color: var(--green); }
+  .btn-settime {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    border: 1px solid var(--green);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--green);
+    cursor: pointer;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn-reset {
+    width: 100%;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: clamp(13px, 3.5vw, 12px);
+    border: 1px solid #f85149;
+    border-radius: 6px;
+    background: transparent;
+    color: #f85149;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    margin-top: 4px;
+  }
+
+  .status-bar {
+    margin-top: 12px;
+    margin-bottom: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+  .status-dot.ok     { background: var(--green); }
+  .status-dot.err    { background: #e74c3c; }
+  .status-dot.saving { background: var(--orange); animation: pulse 0.6s infinite alternate; }
+  @keyframes pulse { from { opacity:1 } to { opacity:0.25 } }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Rugby Scoreboard</h1>
+  <div class="subtitle">MATCH CONTROL PANEL — works from any device</div>
+</div>
+
+<div class="setup-banner" id="setupBanner">
+  <strong>⚙ One-time setup</strong> — get a free API key at
+  <a href="https://jsonbin.io" target="_blank" style="color:var(--orange)">jsonbin.io</a>
+  → Sign up → API Keys. Create a Bin with:<br>
+  <code>{"homeName":"HOME","awayName":"AWAY","homeScore":0,"awayScore":0,"homeTries":0,"awayTries":0,"homeColor":"#1e6bb8","awayColor":"#b81e1e","timerSeconds":0,"timerRunning":false,"timerStartedAt":null}</code>
+  <br><br>
+  <strong>Bin ID:</strong>
+  <input type="text" id="inputBinId" autocomplete="off" autocorrect="off" spellcheck="false" />
+  <strong style="display:block;margin-top:10px">Master API Key:</strong>
+  <input type="text" id="inputApiKey" autocomplete="off" autocorrect="off" spellcheck="false" />
+  <button class="setup-save" onclick="saveConfig()">Save & Connect</button>
+</div>
+
+<div class="grid">
+
+  <!-- Home -->
+  <div class="card home" id="homeCard">
+    <div class="card-title">Home Team</div>
+    <div class="name-row">
+      <input class="team-name-input" id="homeNameInput" value="HOME" maxlength="16" autocorrect="off" />
+      <div class="color-wrap" title="Team colour">
+        <input type="color" id="homeColorPicker" value="#1e6bb8" oninput="onColorChange('home')" onchange="onColorChange('home')" />
+      </div>
+    </div>
+    <div class="score-display" id="homeScoreDisplay">0</div>
+    <div class="score-btns">
+      <button class="btn btn-try"  onclick="addScore('home',5)">+5<span class="btn-label">Try</span></button>
+      <button class="btn btn-pen"  onclick="addScore('home',3)">+3<span class="btn-label">Penalty</span></button>
+      <button class="btn btn-con"  onclick="addScore('home',2)">+2<span class="btn-label">Conv.</span></button>
+      <button class="btn btn-undo" onclick="addScore('home',-1)">-1<span class="btn-label">Fix</span></button>
+    </div>
+    <div class="try-row">
+      <button class="try-btn" onclick="addTries('home',-1)">−</button>
+      <div class="try-display">Tries: <span id="homeTriesDisplay">0</span></div>
+      <button class="try-btn" onclick="addTries('home',1)">+</button>
+    </div>
+  </div>
+
+  <!-- Away -->
+  <div class="card away" id="awayCard">
+    <div class="card-title">Away Team</div>
+    <div class="name-row">
+      <input class="team-name-input" id="awayNameInput" value="AWAY" maxlength="16" autocorrect="off" />
+      <div class="color-wrap" title="Team colour">
+        <input type="color" id="awayColorPicker" value="#b81e1e" oninput="onColorChange('away')" onchange="onColorChange('away')" />
+      </div>
+    </div>
+    <div class="score-display" id="awayScoreDisplay">0</div>
+    <div class="score-btns">
+      <button class="btn btn-try"  onclick="addScore('away',5)">+5<span class="btn-label">Try</span></button>
+      <button class="btn btn-pen"  onclick="addScore('away',3)">+3<span class="btn-label">Penalty</span></button>
+      <button class="btn btn-con"  onclick="addScore('away',2)">+2<span class="btn-label">Conv.</span></button>
+      <button class="btn btn-undo" onclick="addScore('away',-1)">-1<span class="btn-label">Fix</span></button>
+    </div>
+    <div class="try-row">
+      <button class="try-btn" onclick="addTries('away',-1)">−</button>
+      <div class="try-display">Tries: <span id="awayTriesDisplay">0</span></div>
+      <button class="try-btn" onclick="addTries('away',1)">+</button>
+    </div>
+  </div>
+
+  <!-- Timer -->
+  <div class="card wide timer-card">
+    <div class="card-title">Match Timer</div>
+    <div class="timer-face paused" id="timerFace">00:00</div>
+    <div class="timer-btn-row">
+      <button class="btn-timer btn-start"  id="btnStart" onclick="timerStart()">▶ Start</button>
+      <button class="btn-timer btn-pause"  id="btnPause" onclick="timerPause()" disabled>⏸ Pause</button>
+      <button class="btn-timer btn-treset"              onclick="timerReset()">↺ Reset</button>
+    </div>
+    <div class="time-set-row">
+      <span>Set:</span>
+      <input type="number" id="setMins" min="0" max="199" value="0" />
+      <span>:</span>
+      <input type="number" id="setSecs" min="0" max="59" value="0" />
+      <button class="btn-settime" onclick="timerSet()">Set</button>
+      <button class="btn-settime" onclick="quickSet(0)">0:00</button>
+      <button class="btn-settime" onclick="quickSet(40)">40:00</button>
+    </div>
+  </div>
+
+  <div class="card wide">
+    <button class="btn-reset" onclick="resetMatch()">⚡ Reset Entire Match</button>
+  </div>
+
+</div>
+
+<div class="status-bar">
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">Enter your JSONBin credentials above to connect.</span>
+</div>
+
+<script>
+  let BIN_ID  = localStorage.getItem('rugby_bin_id')  || '';
+  let API_KEY = localStorage.getItem('rugby_api_key') || '';
+
+  let state = {
+    homeName:'HOME', awayName:'AWAY',
+    homeScore:0, awayScore:0,
+    homeTries:0, awayTries:0,
+    homeColor:'#1e6bb8', awayColor:'#b81e1e',
+    timerSeconds:0, timerRunning:false, timerStartedAt:null
+  };
+
+  let saving = false, colorDebounce = null, localTick = null, cloudPushInterval = null;
+
+  function saveConfig() {
+    BIN_ID  = document.getElementById('inputBinId').value.trim();
+    API_KEY = document.getElementById('inputApiKey').value.trim();
+    localStorage.setItem('rugby_bin_id',  BIN_ID);
+    localStorage.setItem('rugby_api_key', API_KEY);
+    document.getElementById('setupBanner').style.display = 'none';
+    setStatus('saving','Connecting…');
+    fetchState();
+  }
+
+  if (BIN_ID && API_KEY) {
+    document.getElementById('setupBanner').style.display = 'none';
+    fetchState();
+  }
+
+  function setStatus(type, msg) {
+    document.getElementById('statusDot').className = 'status-dot ' + type;
+    document.getElementById('statusText').textContent = msg;
+  }
+
+  async function fetchState() {
+    if (!BIN_ID || !API_KEY) return;
+    try {
+      const res  = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, { headers:{'X-Master-Key':API_KEY} });
+      const json = await res.json();
+      state = { homeColor:'#1e6bb8', awayColor:'#b81e1e', homeTries:0, awayTries:0, timerSeconds:0, timerRunning:false, timerStartedAt:null, ...json.record };
+      if (state.timerRunning && state.timerStartedAt) {
+        state.timerSeconds  += (Date.now() - state.timerStartedAt) / 1000;
+        state.timerStartedAt = Date.now();
+      }
+      renderUI();
+      startLocalTick();
+      setStatus('ok', `Connected · ${state.homeName} ${state.homeScore}–${state.awayScore} ${state.awayName}`);
+    } catch(e) {
+      setStatus('err','Could not reach JSONBin. Check your Bin ID and API key.');
+    }
+  }
+
+  async function pushState() {
+    if (!BIN_ID || !API_KEY || saving) return;
+    saving = true;
+    setStatus('saving','Saving…');
+    const snap = {...state};
+    if (snap.timerRunning && snap.timerStartedAt) {
+      snap.timerSeconds  += (Date.now() - snap.timerStartedAt) / 1000;
+      snap.timerStartedAt = Date.now();
+    }
+    try {
+      await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
+        body: JSON.stringify(snap)
+      });
+      state.timerSeconds   = snap.timerSeconds;
+      state.timerStartedAt = snap.timerStartedAt;
+      setStatus('ok', `Saved · ${state.homeName} ${state.homeScore}–${state.awayScore} ${state.awayName} · ${new Date().toLocaleTimeString()}`);
+    } catch(e) {
+      setStatus('err','Save failed — check connection.');
+    }
+    saving = false;
+  }
+
+  function getLiveSeconds() {
+    const base = state.timerSeconds || 0;
+    if (!state.timerRunning || !state.timerStartedAt) return base;
+    return base + (Date.now() - state.timerStartedAt) / 1000;
+  }
+  function pad(n) { return String(Math.floor(n)).padStart(2,'0'); }
+  function tickDisplay() {
+    const s = getLiveSeconds();
+    const face = document.getElementById('timerFace');
+    face.textContent = `${pad(s/60)}:${pad(s%60)}`;
+    face.className   = 'timer-face' + (state.timerRunning ? '' : ' paused');
+  }
+  function startLocalTick() { clearInterval(localTick); localTick = setInterval(tickDisplay, 200); }
+
+  function timerStart() {
+    if (state.timerRunning) return;
+    state.timerRunning = true; state.timerStartedAt = Date.now();
+    updateTimerButtons(); pushState();
+    clearInterval(cloudPushInterval);
+    cloudPushInterval = setInterval(pushState, 10000);
+  }
+  function timerPause() {
+    if (!state.timerRunning) return;
+    state.timerSeconds += (Date.now() - state.timerStartedAt) / 1000;
+    state.timerRunning = false; state.timerStartedAt = null;
+    clearInterval(cloudPushInterval);
+    updateTimerButtons(); pushState();
+  }
+  function timerReset() {
+    state.timerRunning = false; state.timerSeconds = 0; state.timerStartedAt = null;
+    clearInterval(cloudPushInterval);
+    updateTimerButtons(); tickDisplay(); pushState();
+  }
+  function timerSet() {
+    const m = parseInt(document.getElementById('setMins').value)||0;
+    const s = parseInt(document.getElementById('setSecs').value)||0;
+    const was = state.timerRunning;
+    state.timerRunning = false; state.timerSeconds = m*60+s; state.timerStartedAt = null;
+    clearInterval(cloudPushInterval);
+    if (was) { state.timerRunning = true; state.timerStartedAt = Date.now(); cloudPushInterval = setInterval(pushState,10000); }
+    updateTimerButtons(); pushState();
+  }
+  function quickSet(mins) {
+    const was = state.timerRunning;
+    state.timerRunning = false; state.timerSeconds = mins*60; state.timerStartedAt = null;
+    clearInterval(cloudPushInterval);
+    if (was) { state.timerRunning = true; state.timerStartedAt = Date.now(); cloudPushInterval = setInterval(pushState,10000); }
+    updateTimerButtons(); pushState();
+  }
+  function updateTimerButtons() {
+    document.getElementById('btnStart').disabled = state.timerRunning;
+    document.getElementById('btnPause').disabled = !state.timerRunning;
+  }
+
+  function addScore(team, pts) {
+    state[team+'Score'] = Math.max(0,(state[team+'Score']||0)+pts);
+    // Auto-increment tries when +5 (try) is pressed
+    if (pts === 5) {
+      state[team+'Tries'] = (state[team+'Tries']||0) + 1;
+    }
+    renderUI(); pushState();
+  }
+
+  function addTries(team, n) {
+    state[team+'Tries'] = Math.max(0, (state[team+'Tries']||0) + n);
+    renderUI(); pushState();
+  }
+
+  function resetMatch() {
+    if (!confirm('Reset scores, tries and timer?')) return;
+    state.homeScore=0; state.awayScore=0;
+    state.homeTries=0; state.awayTries=0;
+    state.timerSeconds=0; state.timerRunning=false; state.timerStartedAt=null;
+    clearInterval(cloudPushInterval);
+    renderUI(); pushState();
+  }
+
+  function applyColors() {
+    const hc = state.homeColor||'#1e6bb8', ac = state.awayColor||'#b81e1e';
+    document.getElementById('homeCard').style.borderTopColor = hc;
+    document.getElementById('homeScoreDisplay').style.color  = hc;
+    document.getElementById('awayCard').style.borderTopColor = ac;
+    document.getElementById('awayScoreDisplay').style.color  = ac;
+  }
+  function onColorChange(team) {
+    state[team+'Color'] = document.getElementById(team+'ColorPicker').value;
+    applyColors();
+    clearTimeout(colorDebounce);
+    colorDebounce = setTimeout(pushState, 600);
+  }
+
+  function renderUI() {
+    document.getElementById('homeNameInput').value   = state.homeName;
+    document.getElementById('awayNameInput').value   = state.awayName;
+    document.getElementById('homeScoreDisplay').textContent = state.homeScore;
+    document.getElementById('awayScoreDisplay').textContent = state.awayScore;
+    document.getElementById('homeTriesDisplay').textContent = state.homeTries || 0;
+    document.getElementById('awayTriesDisplay').textContent = state.awayTries || 0;
+    document.getElementById('homeColorPicker').value = state.homeColor||'#1e6bb8';
+    document.getElementById('awayColorPicker').value = state.awayColor||'#b81e1e';
+    applyColors(); updateTimerButtons();
+  }
+
+  document.getElementById('homeNameInput').addEventListener('change', e => { state.homeName = e.target.value.toUpperCase()||'HOME'; pushState(); });
+  document.getElementById('awayNameInput').addEventListener('change', e => { state.awayName = e.target.value.toUpperCase()||'AWAY'; pushState(); });
+
+  startLocalTick();
+</script>
+</body>
+</html>
